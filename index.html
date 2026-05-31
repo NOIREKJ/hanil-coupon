@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HANIL Pay · 충전권 발행</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{--bg:#0a0a0b;--surface:rgba(255,255,255,.05);--line:rgba(255,255,255,.1);--text:#f4f1ea;--muted:#8c887e;--gold:#c9a24b;--green:#43d17a;--red:#ff6b6b}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Manrope',sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;padding:40px 20px}
+  .wrap{max-width:760px;margin:0 auto}
+  .brand{font-size:24px;font-weight:800;letter-spacing:-.02em}
+  .brand b{color:var(--gold)}
+  .sub{color:var(--muted);font-size:14px;margin-top:4px;margin-bottom:28px}
+
+  .screen{display:none}
+  .screen.on{display:block}
+
+  /* 로그인 */
+  .login-panel{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:28px;max-width:400px;margin:40px auto 0}
+  .login-panel h2{font-size:18px;margin-bottom:6px}
+  .login-panel .lp-sub{font-size:13px;color:var(--muted);margin-bottom:20px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+  input{width:100%;padding:14px 16px;background:rgba(255,255,255,.08);border:1.5px solid var(--line);border-radius:12px;color:var(--text);font-family:'Manrope';font-size:15px}
+  input:focus{outline:none;border-color:var(--gold)}
+
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:28px}
+  .block{margin-bottom:26px}
+  .block > label{display:block;font-size:15px;font-weight:700;margin-bottom:12px}
+  .block .hint{font-size:12px;color:var(--muted);margin-top:8px}
+  .amount-chips{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+  .chip{padding:16px 10px;border-radius:12px;background:rgba(255,255,255,.06);border:1.5px solid var(--line);cursor:pointer;text-align:center;font-size:16px;font-weight:700;transition:all .12s}
+  .chip:hover{background:rgba(255,255,255,.1)}
+  .chip.on{background:var(--gold);color:#1a1407;border-color:var(--gold)}
+  .amount-custom{display:flex;align-items:center;gap:10px}
+  .amount-custom span{font-size:13px;color:var(--muted);white-space:nowrap}
+  .count-row{display:flex;align-items:center;gap:14px}
+  .count-row input{flex:1;font-family:'Space Mono',monospace;font-size:22px;text-align:center}
+  .count-row .unit{font-size:18px;color:var(--muted);font-weight:700}
+  .count-quick{display:flex;gap:8px;margin-top:10px}
+  .count-quick button{flex:1;padding:10px;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'Manrope';font-size:14px;cursor:pointer}
+  .count-quick button:hover{background:rgba(255,255,255,.1)}
+  .summary{background:rgba(201,162,75,.08);border:1px solid rgba(201,162,75,.25);border-radius:12px;padding:16px;text-align:center;font-size:15px;margin:24px 0 16px}
+  .summary b{color:var(--gold);font-size:18px}
+  button.go{width:100%;padding:17px;background:var(--gold);color:#1a1407;border:none;border-radius:13px;font-family:'Manrope';font-weight:800;font-size:17px;cursor:pointer}
+  button.go:disabled{opacity:.5;cursor:default}
+  .msg{margin-top:14px;font-size:14px;text-align:center;min-height:20px}
+  .msg.err{color:var(--red)} .msg.ok{color:var(--green)}
+
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+  .topbar .who{font-size:13px;color:var(--muted)}
+  .topbar .who b{color:var(--text)}
+  .topbar button{background:rgba(255,255,255,.1);border:1px solid var(--line);color:var(--text);padding:8px 14px;border-radius:9px;font-family:'Manrope';font-size:13px;cursor:pointer}
+
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin:32px 0 18px}
+  .toolbar h2{font-size:18px}
+  .print-btn{padding:12px 22px;background:#fff;color:#000;border:none;border-radius:11px;font-family:'Manrope';font-weight:800;cursor:pointer;font-size:14px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .ticket{background:#fff;border-radius:14px;padding:18px;text-align:center;color:#111;page-break-inside:avoid}
+  .ticket .tlabel{font-size:12px;color:#666;font-weight:700;letter-spacing:.05em}
+  .ticket .tamt{font-size:22px;font-weight:800;margin:6px 0 12px;color:#1a1407}
+  .ticket .qr{display:flex;justify-content:center}
+  .ticket .qr img,.ticket .qr canvas{width:150px!important;height:150px!important}
+  .ticket .tcode{font-family:'Space Mono',monospace;font-size:10px;color:#888;margin-top:10px;word-break:break-all}
+  .ticket .tbrand{font-size:11px;font-weight:800;margin-top:8px;color:#b8860b}
+  @media print{
+    body{background:#fff;padding:0}
+    .panel,.toolbar .print-btn,.brand,.sub,.topbar{display:none}
+    .toolbar h2{color:#111}
+    .grid{gap:10px}.ticket{border:1px dashed #bbb}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">HANIL <b>Pay</b></div>
+  <div class="sub">충전권(쿠폰) 발행 · 관리자 전용</div>
+
+  <!-- 로그인 화면 -->
+  <section class="screen on" id="loginScreen">
+    <div class="login-panel">
+      <h2>관리자 로그인</h2>
+      <div class="lp-sub">쿠폰 발행은 관리자만 가능합니다.</div>
+      <div class="field"><label>이메일</label><input id="email" type="email" autocomplete="email" placeholder="관리자 이메일"></div>
+      <div class="field"><label>비밀번호</label><input id="password" type="password" autocomplete="current-password" placeholder="비밀번호"></div>
+      <button class="go" id="loginBtn">로그인</button>
+      <div class="msg" id="loginMsg"></div>
+    </div>
+  </section>
+
+  <!-- 발행 화면 -->
+  <section class="screen" id="genScreen">
+    <div class="topbar">
+      <div class="who"><b id="adminName">관리자</b>님으로 로그인됨</div>
+      <button id="logoutBtn">로그아웃</button>
+    </div>
+    <div class="panel">
+      <div class="block">
+        <label>1. 충전 금액</label>
+        <div class="amount-chips" id="amountChips">
+          <div class="chip" data-a="5000">5,000원</div>
+          <div class="chip on" data-a="10000">10,000원</div>
+          <div class="chip" data-a="30000">30,000원</div>
+          <div class="chip" data-a="50000">50,000원</div>
+        </div>
+        <div class="amount-custom"><span>직접 입력</span><input id="amount" type="number" inputmode="numeric" value="10000"><span>원</span></div>
+      </div>
+      <div class="block">
+        <label>2. 발행 수량</label>
+        <div class="count-row"><input id="count" type="number" inputmode="numeric" value="10"><span class="unit">장</span></div>
+        <div class="count-quick"><button data-c="10">10장</button><button data-c="30">30장</button><button data-c="50">50장</button><button data-c="100">100장</button></div>
+      </div>
+      <div class="block">
+        <label>3. 묶음 이름 <span style="color:var(--muted);font-weight:400;font-size:13px">(선택)</span></label>
+        <input id="label" type="text" placeholder="예: 2026 신년감사 · 행사 답례">
+        <div class="hint">나중에 어떤 행사용 쿠폰인지 구분할 때 쓰여요.</div>
+      </div>
+      <div class="summary" id="summary">10,000원 충전권 <b>10장</b>을 발행합니다</div>
+      <button class="go" id="genBtn">충전권 생성</button>
+      <div class="msg" id="msg"></div>
+    </div>
+
+    <div class="toolbar" id="toolbar" style="display:none">
+      <h2 id="resultTitle">발행된 충전권</h2>
+      <button class="print-btn" onclick="window.print()">🖨 인쇄하기</button>
+    </div>
+    <div class="grid" id="grid"></div>
+  </section>
+</div>
+
+<script>
+  /* ⚙️ 두 줄만 (앱·포스기랑 같은 값). 마스터키 불필요! */
+  SUPABASE_URL:      "https://omnpkfyzqzihksawyxfr.supabase.co";
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9tbnBrZnl6cXppaGtzYXd5eGZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2MDQ4MTUsImV4cCI6MjA5NTE4MDgxNX0.9sq1RkQZEPDH8qxeLQO2ghwsHCzCCp2dYvnL8Qrr4tg",
+          };
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+  const $=(id)=>document.getElementById(id);
+  const won=(n)=>Number(n||0).toLocaleString('ko-KR');
+
+  function show(name){ document.querySelectorAll(".screen").forEach(s=>s.classList.remove("on")); $(name+"Screen").classList.add("on"); }
+
+  // ── 로그인 ──
+  $("loginBtn").addEventListener("click", doLogin);
+  $("password").addEventListener("keydown", e=>{ if(e.key==="Enter") doLogin(); });
+
+  async function doLogin(){
+    const email=$("email").value.trim(), password=$("password").value;
+    if(!email||!password){ $("loginMsg").className="msg err"; $("loginMsg").textContent="이메일과 비밀번호를 입력하세요."; return; }
+    $("loginBtn").disabled=true; $("loginMsg").className="msg"; $("loginMsg").textContent="로그인 중…";
+    const {error}=await sb.auth.signInWithPassword({email,password});
+    if(error){ $("loginMsg").className="msg err"; $("loginMsg").textContent="로그인 실패: "+error.message; $("loginBtn").disabled=false; return; }
+    await checkAdmin();
+    $("loginBtn").disabled=false;
+  }
+
+  // ── 관리자 확인 ──
+  async function checkAdmin(){
+    const {data:m, error}=await sb.from("members").select("name, is_admin").single();
+    if(error){ $("loginMsg").className="msg err"; $("loginMsg").textContent="회원 정보 조회 실패"; return; }
+    if(!m.is_admin){
+      $("loginMsg").className="msg err"; $("loginMsg").textContent="관리자만 사용할 수 있어요.";
+      await sb.auth.signOut(); return;
+    }
+    $("adminName").textContent = m.name || "관리자";
+    show("gen"); updateSummary();
+  }
+
+  $("logoutBtn").addEventListener("click", async ()=>{ await sb.auth.signOut(); location.reload(); });
+
+  // ── 발행 폼 ──
+  function updateSummary(){
+    const a=parseInt($("amount").value)||0, c=parseInt($("count").value)||0;
+    $("summary").innerHTML=`${won(a)}원 충전권 <b>${won(c)}장</b>을 발행합니다`;
+  }
+  document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
+    document.querySelectorAll('.chip').forEach(x=>x.classList.remove('on')); c.classList.add('on'); $("amount").value=c.dataset.a; updateSummary();
+  }));
+  $("amount").addEventListener('input',()=>{ document.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x.dataset.a===$("amount").value)); updateSummary(); });
+  document.querySelectorAll('.count-quick button').forEach(b=>b.addEventListener('click',()=>{ $("count").value=b.dataset.c; updateSummary(); }));
+  $("count").addEventListener('input', updateSummary);
+
+  $("genBtn").addEventListener('click', generate);
+  async function generate(){
+    const amount=parseInt($("amount").value), count=parseInt($("count").value), label=$("label").value.trim();
+    const msg=$("msg");
+    if(!amount||amount<=0||!count||count<=0){ msg.className='msg err'; msg.textContent='금액과 수량을 올바르게 입력하세요.'; return; }
+    if(count>500){ msg.className='msg err'; msg.textContent='한 번에 최대 500장까지 가능합니다.'; return; }
+    $("genBtn").disabled=true; msg.className='msg'; msg.textContent='생성 중…';
+    // 로그인된 관리자 권한으로 호출 (마스터키 불필요)
+    const {data, error}=await sb.rpc("admin_create_coupons", { p_amount:amount, p_count:count, p_label:label });
+    if(error){ msg.className='msg err'; msg.textContent='생성 실패: '+error.message; $("genBtn").disabled=false; return; }
+    if(!data||data.success===false){ msg.className='msg err'; msg.textContent=(data&&data.error)||'생성 실패'; $("genBtn").disabled=false; return; }
+    msg.className='msg ok'; msg.textContent=`${data.codes.length}장 생성 완료!`;
+    renderTickets(data.codes, amount, label);
+    $("genBtn").disabled=false;
+  }
+
+  function renderTickets(codes, amount, label){
+    $("toolbar").style.display='flex';
+    $("resultTitle").textContent=`${won(amount)}원 충전권 ${codes.length}장${label?' · '+label:''}`;
+    const grid=$("grid"); grid.innerHTML='';
+    codes.forEach(code=>{
+      const t=document.createElement('div'); t.className='ticket';
+      t.innerHTML=`<div class="tlabel">한일교회 충전권</div><div class="tamt">${won(amount)}원</div><div class="qr"></div><div class="tcode">${code}</div><div class="tbrand">HANIL Pay</div>`;
+      grid.appendChild(t);
+      new QRCode(t.querySelector('.qr'), {text:code, width:150, height:150, correctLevel:QRCode.CorrectLevel.M});
+    });
+    document.querySelector('.toolbar').scrollIntoView({behavior:'smooth'});
+  }
+
+  // 이미 로그인돼 있으면 바로 관리자 확인
+  sb.auth.getSession().then(({data})=>{ if(data.session) checkAdmin(); });
+</script>
+</body>
+</html>
